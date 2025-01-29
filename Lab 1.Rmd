@@ -1,0 +1,380 @@
+---
+title: "BIO 356 / BEE 587 Lab 1 - Population Growth"
+author: "Brian Wang"
+date: "2/5/24"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+
+library(tidyverse)
+library(gridExtra) ## for plotting function grid.arrange()
+library(deSolve) ## for predator-prey-resource ODE model
+library(magrittr) ## for pipe symbol %<>%
+library(knitr) ## for table-viewing function kable()
+library(readxl) ## for data reading function read_excel()
+library(rio) ## for data-reading function import()
+library(growthrates) ## for dataset bactgrowth
+
+theme_set(theme_bw())
+```
+
+##Q1 It will take an extra week from the week the lily pad has covered the entire pond because the lilypads double in population every week.
+
+##Q2 since we start with one, we remove 1 from the total number of squares.
+
+```{r}
+print(sum(2^(0:63)))
+```
+
+##Q3 It will take 5.811 weeks for the aphid population to reach 80. that means that it will reach that on day 40.
+
+```{r}
+totalAphids <- function(x) {
+  return(0.0098*exp(1)^(1.55 * x))
+}
+
+getWeekfromTotalAphids <- function(x) {
+  return((1/1.55) * log(x/0.0098))
+}
+
+getWeekfromTotalAphids(40)
+getWeekfromTotalAphids(80)
+totalAphids(5.811)
+```
+
+##Q4 The number of Aphids per plant on day 14 would be 26026534. If an aphid weighed 0.2 mg, then each cornstalk will have 26 kg of aphids on it. We should note that this model does not take carrying capacity into account.
+
+```{r}
+totalAphids(14)
+```
+
+##Q5
+
+a. The trendline fits the logistic graph better
+b. The growth in covid cases is a logistic growth curve.
+c. In logarithmic scale, a logistic growth curves shows up as a linear set of points
+
+```{r echo=TRUE}
+data = 
+  'https://github.com/rafaeldandrea/BIO-356/blob/master/covid_data.rds?raw=true' |>
+  url() |>
+  readRDS() |>
+  as_tibble() |>
+  mutate(date = as.Date(date))
+
+country = 'United Kingdom'
+initial_date = '2020-03-01'
+final_date = '2020-04-01'
+
+filtered_data = 
+  data |> 
+  filter(
+    location == country,
+    date >= initial_date, 
+    date < final_date
+  ) 
+
+plot = 
+  filtered_data |> 
+  ggplot(aes(date, new_cases_smoothed)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm') +
+  labs(
+    x = 'Date',
+    y = 'New cases'
+  ) +
+  theme(aspect.ratio = 1)
+
+plot
+
+plot_log = 
+  plot +
+  scale_y_log10()
+
+plot_log
+```
+
+##Q6
+it will take approximately 2 days for the next person to be infected.
+```{r}
+DaysUntilNInfected <- function(N) {
+  days = 0
+  total = 1
+  while(total < N) {
+    total = 1.2 * total
+    days = days + 1
+  }
+  
+  return(total)
+}
+
+DaysUntilNInfected(2)
+```
+
+##Q7
+
+a. Exponential growth is no longer a good description of the spread, it is much more chaotic now.
+b. Lockdown limited how many people get infected with the virus.
+```{r echo=TRUE}
+data = 
+  'https://github.com/rafaeldandrea/BIO-356/blob/master/covid_data.rds?raw=true' |>
+  url() |>
+  readRDS() |>
+  as_tibble() |>
+  mutate(date = as.Date(date))
+
+country = 'United Kingdom'
+initial_date = '2020-03-01'
+final_date = '2021-08-01'
+
+filtered_data = 
+  data |> 
+  filter(
+    location == country,
+    date >= initial_date, 
+    date < final_date
+  ) 
+
+plot = 
+  filtered_data |> 
+  ggplot(aes(date, new_cases_smoothed)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm') +
+  labs(
+    x = 'Date',
+    y = 'New cases'
+  ) +
+  theme(aspect.ratio = 1)
+
+plot
+
+plot_log = 
+  plot +
+  scale_y_log10()
+
+plot_log
+```
+
+##Q8
+The aphid population will likely reach it's carrying capacity well before it reaches 2 million per plant.
+
+##Q9
+The population will slow down as it reaches F/c. There will be no more resources left for any new members of the population. For populations with particularly fast growth rate, it is possible for the population to surpass the carrying capacity, resulting in the population to overshoot the carrying capacity as it returns downwards. Depending on the rate of growth and death rate, it can oscillate or experience dampened motion
+
+##Q10
+We can simplify the expression to exponential growth. we can conclude that at small populations and high carrying capcity the population growth will be near exponential, just like what we saw earlier when we were tracking covid infections in the UK over the course of a month.
+
+```{r}
+dat = 
+  bactgrowth |> 
+  as_tibble()
+
+dat_example = 
+  dat |>
+  filter(strain == 'T', conc == .24, replicate == 1)
+
+dat_example_first6hours = 
+  dat_example |>
+  filter(time <= 6)
+
+dat_example_first6hours |>
+  ggplot(aes(time, value)) + 
+  geom_point()
+
+fit_exponential =  
+  with(
+    dat_example_first6hours, 
+    fit_growthmodel(FUN = grow_exponential, p = c(y0 = .01, mumax = .2), time, value)
+  )
+
+predicted_data = 
+  predict(fit_exponential, dat_example_first6hours) |>
+  as_tibble()
+
+dat_example_first6hours |>
+  ggplot(aes(time, value)) + 
+  geom_line(aes(time, y), data = predicted_data, color = 'red') +
+  geom_point()
+
+dat_example_first12hours =
+  dat_example |>
+  filter(time <= 12)
+
+dat_example_first12hours |>
+  ggplot(aes(time, value)) + 
+  geom_point()
+
+dat_example |>
+  ggplot(aes(time, value)) + 
+  geom_point()
+
+fit_logistic =  
+  with(
+    dat_example,
+    fit_growthmodel(FUN = grow_logistic, p = c(y0 = .01, mumax = .2, K = .06), time, value)
+  )
+
+dat_example |>
+  ggplot(aes(time, value)) +
+  geom_line(aes(time, y), as_tibble(predict(fit_logistic, dat_example)), color = 'red') +
+  geom_line(aes(time, y), as_tibble(predict(fit_exponential, dat_example_first12hours)), color = 'blue') +
+  geom_point()
+```
+
+```{r}
+dat |> 
+  filter(replicate == 1) |> 
+  ggplot(aes(time, value, group = strain, color = strain)) + 
+  geom_point() + 
+  facet_wrap(~conc, scales = 'free')
+```
+
+##Q12 
+If the experiment continues, assuming that there is still food in the treatment, the populations of the bacterial will reach an equilibrium. I'm guessing that the D strain will have the highest population, followed by T and then R in most cases
+
+##Q13 Show the plots for replicate 2 of the experiment
+```{r}
+dat |> 
+  filter(replicate == 2) |> 
+  ggplot(aes(time, value, group = strain, color = strain)) + 
+  geom_point() + 
+  facet_wrap(~conc, scales = 'free')
+```
+```{r}
+github_address = 'https://github.com/rafaeldandrea/BIO-356/blob/master/WPP2019_POP_F01_1_TOTAL_POPULATION_BOTH_SEXES.xlsx?raw=true'
+
+UN_popdata_1950_to_2020 = 
+  rio::import(github_address, range = 'F17:BZ18') |> 
+  select(-'Parent code') |> 
+  pivot_longer(-Type, names_to = 'year', values_to = 'population') |>
+  select(-Type) |>
+  mutate(
+    year = as.numeric(year),
+    population = population / 1e6
+  )
+
+UN_popdata_1950_to_2020
+```
+
+```{r}
+UN_popdata_1950_to_2020 |> 
+  ggplot(aes(year, population)) + 
+  geom_point() +
+  ylab('population (billions)') +
+  theme(aspect.ratio = 1)
+```
+
+```{r}
+UN_popdata_1950_to_2020 %<>%
+  mutate(
+    population_nextyear = dplyr::lead(population),
+    growth_rate = 100 * (population_nextyear - population) / population
+  )
+
+plot_growth_vs_pop = 
+  UN_popdata_1950_to_2020 |>
+  filter(year < 2020) |>
+  ggplot(aes(population, growth_rate, color = year)) +
+  geom_point() +
+  labs(
+    x = 'population (billions)',
+    y = 'annual growth rate (%)'
+  ) +
+  theme(legend.position = 'none', aspect.ratio = 1) +
+  scale_color_gradient(low = 'blue', high = 'red')
+
+plot_growth_vs_pop
+```
+
+```{r}
+linear_model = lm(growth_rate ~ population, data = UN_popdata_1950_to_2020)
+
+plot_growth_vs_pop +
+   geom_abline(
+     intercept = coef(linear_model)[1], 
+     slope = coef(linear_model)[2], 
+     color = 'darkgrey'
+    )
+```
+## Q14
+It is estimated that the population will reach a 0% growth rate at around 13.7 billion individuals
+```{r}
+coef(linear_model)
+print(2.2546/0.1841)
+```
+
+##Q15
+this model is the exponential growth model when a is the initial population and b is the growth rate
+
+##Q16
+density is the amount of plants per area. If there are 2 plants in a square meter, then there is 0.5 square meter available per plant. If there are 4 plants in a square meter, then there is 0.25 square meters available per plant.
+
+##Q17
+If the farmer has access to unlimited amount of fertilizer, then the farmer shoud pack as much plants in an square area as possible since he would neither be C-limited or N-limited.
+```{r}
+Yield = function(rho, kc, kn, knc){
+  100 * rho / (1 + kc * rho + kn * rho ^ 1.5 + knc * rho ^ 2.5)
+}
+
+dat =
+  tibble(
+    density = seq(0, 10, l = 1000),
+    `N-limited` =  Yield(rho = density, kc = 0, kn = 1, knc = 0),
+    `C-limited` =  Yield(rho = density, kc = 1, kn = 0, knc = 0),
+    `NC-limited` = Yield(rho = density, kc = 0, kn = 0, knc = 1)
+  ) |>
+  pivot_longer(-density, names_to = 'scenario', values_to = 'yield')
+
+
+dat |>
+  ggplot(aes(density, yield, group = scenario, color = scenario)) +
+  geom_line(linewidth = 1) +
+  labs(
+    x = 'density (plants per unit area)',
+    y = 'yield (harvestable plant mass per unit area)'
+  )
+```
+
+## Q18
+The farmer should limit the density of the plants to around 1.25-2 per unit area.
+
+## Q19
+The optimal density for this case is around 5 stalks per unit area.
+```{r}
+optimal_density = function(kn, kc, knc){
+  uniroot(f = function(rho) kn * rho ^ 1.5 + 3 * knc * rho ^ 2.5 - 2, interval = c(0, 50))$root
+}
+
+optimal_density(0.1,0.01,0.005)
+```
+
+## Q20
+This provides an explanation for why the carrying capacity is what it is.
+
+## Q21
+
+$$
+\begin{split}
+0=r\left(1-\frac{N}{K}\right) N - qEN \\
+qEN=r \left(1 - \frac{N}{K} \right)N \\
+\frac{qE~N~}{N}=r\left(1-\frac{N}{K}\right) \\
+\frac{qE}{r}=1-\frac{N}{K} \\
+\frac{N}{K}=1-\frac{qE}{r} \\
+N = K - \frac{qEK}{r} \\
+\end{split}
+$$
+
+## Q22
+The optimal about of fishing nets is 50. 250000 fishes are caught with this much. Using too much nets will cause a lower equilibrium population because too many fishes are being caught and are not being replaced fast enough
+
+## Q24
+The Allee effects causes results in the number of fishes being about to reproduce to decrease drastically to the point of extinction.
+
+## Q25
+This is alarming because over fishing does not result in a slow decrease of the fish population but rather a collapse of the entire population.

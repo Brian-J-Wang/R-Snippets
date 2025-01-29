@@ -1,0 +1,428 @@
+---
+title: "BIO 356 / BEE 587 Lab 8 - Competition Part 2"
+author: "Brian Wang"
+date: "4/15/23"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r setup, include=FALSE, message=FALSE}
+library(tidyverse)
+library(gridExtra) ## for plotting function grid.arrange()
+library(deSolve) ## for ODE model
+library(magrittr) ## for pipe symbol %<>%
+library(knitr) ## for table-viewing function kable()
+library(gganimate) ## for plotting animations with ggplot
+theme_set(theme_bw())
+theme_update(
+  panel.grid = element_blank(),
+  aspect.ratio = 1
+)
+```
+
+
+
+
+## Q1
+In the absence of a predator, the two consumers will continuously grow. It is at this time that the more competitive species will out perform the other species. In the presence of a copepod however, the two populations will be controlled and neither of the them are able to fully exploit nitrite.
+
+## Q2
+The different species grow in different heights of the coffee plants. Based on the distribution of the species, I predict that P. protensa prefers ground level, P. synanthropica prefers the stalk, and C. carinata prefers the top part of the coffee plant.
+
+## Q3
+P. protensa is not able to compete well with P. synanthropica because it takes up less space when C. carinata was removed and P. protensa is about equal with C. carnita when P. synanthroica was removed.
+
+## Q4
+Fundamental niche is the range of resources that a species can use while realized niche is the resources that a species can realistically exploit due to the presence of another species.
+
+## Q5
+Yes, because the reason for character displacement is because of of the presence of M. guttatus which would impact the rate of survival for different speceis.
+
+## Q6
+Due to how these two species look similar, the rate of pollenation decreases because of incompatable pollen being tranmitted to the other flowers.
+```{r}
+LV_Model = 
+  function(
+    initial_N,
+    intrinsic_growth_rate,
+    carrying_capacity,
+    community_matrix,
+    final_time,
+    time_step
+  ){
+      LV = 
+        function(t, state, parameters){
+           with(as.list(parameters), {
+             N = state
+             dNdt = as.numeric(r * N * (1 - A %*% N / K))
+             list(dNdt)
+           })
+          }
+      
+      times = seq(0, final_time, by = time_step)
+      
+      parameters = 
+        list(
+          r = intrinsic_growth_rate,
+          K = carrying_capacity,
+          A = community_matrix
+        )
+      
+      state = initial_N
+      
+      out = ode(y = state, times = times, func = LV, parms = parameters)
+      
+      return(
+        list(
+          parameters = 
+            list(
+              intrinsic_growth_rate, 
+              carrying_capacity, 
+              community_matrix
+            ),
+          initial_conditions = initial_N,
+          state = out
+        )
+      )
+   }
+
+# Plotting the model outcome
+Plot_LV_timeseries = 
+  function(model){
+    as.data.frame(model$state) |>
+    pivot_longer(-time, names_to = 'species', values_to = 'abundance') |>
+    ggplot(aes(time, abundance, group = species, color = species)) +
+    geom_line(size = 1) +
+    expand_limits(y = 0)
+  }
+
+Plot_LV_stemplot = 
+  function(trait, model){
+    tibble(trait = trait, abundance = round(model$state[nrow(model$state), -1])) |>
+    ggplot() +
+    geom_segment(aes(trait, abundance, xend = trait, yend = abundance - abundance)) +
+    geom_point(aes(trait, abundance))
+  }
+
+```
+## Q7
+The biggest competitor of Geospiza fortis would either be its own species or another finch species that has a similar beak size to G. fortis.
+
+## Q8
+Yes, because of the different beak-size, it would be possible for different finch species to coexist of they are able to exploit different resources.
+
+## Q9
+aij is a value that ranges from 0 to 1 where 0 represents a species that is the least competitive with the species of interest while 1 represent a species that is the most competitive with the species of interest
+
+## Q10
+Assuming that the finches consume an equal amount of seeds, it means that the distribution of seed sizes are about equal and allows the finches to coexist with each other.
+
+```{r}
+number_of_species = 3
+scale = .2
+trait = c(-.5, 0, .5)
+K = 1000
+N0 = c(K, 10, K)
+r = .1
+final_year = 500
+
+trait_differences = as.matrix(dist(trait))
+community_matrix = exp(-(trait_differences / scale) ^ 4)
+
+model = 
+  LV_Model(
+    initial_N = N0, 
+    intrinsic_growth_rate = c(r, r, r), 
+    carrying_capacity = c(K, K, K), 
+    community_matrix = community_matrix, 
+    final_time = final_year, 
+    time_step = 1
+  )
+
+plot_timeseries = 
+  Plot_LV_timeseries(model) + 
+  theme(legend.position = 'none') +
+  theme(aspect.ratio = 1)
+```
+
+```{r}
+plot_stemplot = 
+  Plot_LV_stemplot(trait = trait, model = model) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  theme(aspect.ratio = 1) +
+  xlim(c(-.5, .5))
+
+gridExtra::grid.arrange(plot_timeseries, plot_stemplot, nrow = 1)
+```
+```{r}
+number_of_species = 3
+scale = .2
+trait = c(-.2, 0, .2)
+K = 1000
+N0 = c(K, 10, K)
+r = .1
+final_year = 500
+
+trait_differences = as.matrix(dist(trait))
+community_matrix = exp(-(trait_differences / scale) ^ 4)
+
+model = 
+  LV_Model(
+    initial_N = N0, 
+    intrinsic_growth_rate = c(r, r, r), 
+    carrying_capacity = c(K, K, K), 
+    community_matrix = community_matrix, 
+    final_time = final_year, 
+    time_step = 1
+  )
+
+plot_timeseries = 
+  Plot_LV_timeseries(model) + 
+  theme(legend.position = 'none') +
+  theme(aspect.ratio = 1)
+
+plot_stemplot = 
+  Plot_LV_stemplot(trait = trait, model = model) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  theme(aspect.ratio = 1) +
+  xlim(c(-.5, .5))
+
+gridExtra::grid.arrange(plot_timeseries, plot_stemplot, nrow = 1)
+```
+
+```{r}
+number_of_species = 3
+scale = .2
+trait = c(-.15, 0, .15)
+K = 1000
+N0 = c(K, 10, K)
+r = .1
+final_year = 500
+
+trait_differences = as.matrix(dist(trait))
+community_matrix = exp(-(trait_differences / scale) ^ 4)
+
+model = 
+  LV_Model(
+    initial_N = N0, 
+    intrinsic_growth_rate = c(r, r, r), 
+    carrying_capacity = c(K, K, K), 
+    community_matrix = community_matrix, 
+    final_time = final_year, 
+    time_step = 1
+  )
+
+plot_timeseries = 
+  Plot_LV_timeseries(model) + 
+  theme(legend.position = 'none') +
+  theme(aspect.ratio = 1)
+
+plot_stemplot = 
+  Plot_LV_stemplot(trait = trait, model = model) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  theme(aspect.ratio = 1) +
+  xlim(c(-.5, .5))
+
+gridExtra::grid.arrange(plot_timeseries, plot_stemplot, nrow = 1)
+
+```
+
+## Q11
+when species trait features are closely matching, it prevents the invader from finding it's realized niche and they die off.
+
+```{r}
+number_of_species = 100
+scale = .2
+trait = seq(-.5, .5, length = number_of_species)
+K = 1000
+N0 = rep(K, number_of_species)
+r = .1
+final_year = 5000
+
+trait_differences = as.matrix(dist(trait))
+community_matrix = exp(-(trait_differences / scale) ^ 4)
+
+model = 
+  LV_Model(
+    initial_N = N0, 
+    intrinsic_growth_rate = rep(r, number_of_species), 
+    carrying_capacity = rep(K, number_of_species), 
+    community_matrix = community_matrix, 
+    final_time = final_year, 
+    time_step = 1
+  )
+```
+
+## Q12
+The groups are maximally separated because it prevents competition between species and allows different species to coexist within the same area.
+
+```{r}
+number_of_species = 100
+scale = 0.1
+trait = seq(-.5, .5, length = number_of_species)
+K = 1000
+N0 = rep(K, number_of_species)
+r = .1
+final_year = 5000
+
+trait_differences = as.matrix(dist(trait))
+community_matrix = exp(-(trait_differences / scale) ^ 4)
+
+model = 
+  LV_Model(
+    initial_N = N0, 
+    intrinsic_growth_rate = rep(r, number_of_species), 
+    carrying_capacity = rep(K, number_of_species), 
+    community_matrix = community_matrix, 
+    final_time = final_year, 
+    time_step = 1
+  )
+
+Plot_LV_stemplot(trait = trait, model = model)
+```
+## Q13
+The number of niches are equivalent to the number of distinct spikes on the graph. Therefore there are 8 niches in this graph.
+
+```{r}
+Stochastic_LV_Model = 
+  function(
+    trait,
+    initial_N,
+    intrinsic_growth_rate,
+    carrying_capacity,
+    immigration_pressure,
+    community_matrix,
+    final_time,
+    turnover_rate
+  ){
+    
+    S = length(trait)
+    r = intrinsic_growth_rate
+    K = carrying_capacity
+    A = community_matrix
+    N = initial_N
+    m = immigration_pressure
+    
+    N_record = N
+    
+    time = 0
+    
+    while(time < final_time){
+      
+      time = time + 1
+      deaths = 
+        table(
+          sample(
+            S, 
+            replace = TRUE, 
+            size = turnover_rate * sum(N), 
+            prob = r * N
+          )  
+        )
+        
+      death_ids = as.numeric(names(deaths))
+      
+      births = 
+        table(
+          sample(
+            S, 
+            replace = TRUE, 
+            size = (1 - m) * turnover_rate * sum(N), 
+            prob = pmax(0, r * N * (2 - 1/K * as.numeric(A %*% N)))
+          )
+        )
+        
+      birth_ids = as.numeric(names(births))
+      
+      immigrants = 
+        table(
+          sample(
+            S,
+            replace = TRUE,
+            size = m * turnover_rate * sum(N),
+          )
+        )
+      
+      immigrant_ids = as.numeric(names(immigrants))
+      
+      N[death_ids] = pmax(0, N[death_ids] - deaths)
+      N[birth_ids] = N[birth_ids] + births
+      N[immigrant_ids] = N[immigrant_ids] + immigrants
+      
+      N_record = rbind(N_record, N)
+    }
+    
+    return(
+      list(
+        parms = list(r, K, A, m, N0 = initial_N, final_time),
+        state = cbind(0:final_time, N_record)
+      )
+    )
+    
+}
+```
+
+```{r}
+number_of_species = 200
+scale = .2
+trait = seq(-.5, .5, length = number_of_species)
+K = 20000
+N0 = 100
+r = .1
+m = .01
+final_year = 5000
+
+trait_differences = as.matrix(dist(trait))
+trait_differences = pmin(trait_differences, 1 - trait_differences)
+community_matrix = exp(-(trait_differences / scale) ^ 4)
+```
+
+```{r}
+set.seed(0)
+
+model_stochastic = 
+  Stochastic_LV_Model(
+    trait = trait,
+    initial_N = rep(N0, number_of_species), 
+    intrinsic_growth_rate = rep(r, number_of_species), 
+    carrying_capacity = rep(K, number_of_species), 
+    immigration_pressure = m,
+    community_matrix = community_matrix, 
+    final_time = final_year, 
+    turnover_rate = 0.1
+  )
+
+
+dtf_stochastic = 
+  model_stochastic$state |> 
+  as_tibble() |> 
+  pivot_longer(-V1, names_to = 'species', values_to = 'abundance') |> 
+  rename(year = V1) |> 
+  mutate(trait = trait[match(species, unique(species))])
+```
+
+## Q14
+The clusters are noisy because this plot is the result of a stochastic model, where there is a bit of randomness on the change in the relative abundance of a trait.
+
+## Q15
+Some clusters are permanent now because of the constant influx of species with a particular trait.
+
+## Q16
+We can see that the clustering of species are at relative consistent intervals. This might indicate that there is a sunflecking condition where there are areas of concentrated resources. This is reflected by the clusting of species around certain height levels.
+
+## Q17
+I would expect to see three clusters. one at the top of the canopy, one at the bottom of the canopy, and one somewhere near the tree midline.
+
+## Q18
+the small amount of tree species might make it difficult to ascertain which species traits are actually clustered together.

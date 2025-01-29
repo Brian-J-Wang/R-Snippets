@@ -1,0 +1,308 @@
+---
+title: "BIO 356 / BEE 587 Lab Number - Lab Name"
+author: "Brian Wang"
+date: "4/15/23"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+
+# don't forget to copy/paste here all of the libraries required for this week's lab
+library(tidyverse)
+library(gridExtra) ## for plotting function grid.arrange()
+library(deSolve) ## for predator-prey-resource ODE model
+library(magrittr) ## for pipe symbol %<>%
+library(knitr) ## for table-viewing function kable()
+
+theme_set(theme_bw())
+theme_update(
+  panel.grid = element_blank(),
+  aspect.ratio = 1
+)
+```
+
+## Q1
+Since there are no consumers, the equilibrium population of the resource would be the resource carrying capacity K.
+
+## Q2
+I don't know.
+
+## Q3
+r1n1(1 - N1/k1) since N2 would be 0. This is an logistic curve.
+
+## Q4
+consumer 1 would experience exponential growth. r1 would be the relative rate of growth.
+
+```{r}
+LV_Model = 
+  function(
+    initial_N,
+    intrinsic_growth_rate,
+    carrying_capacity,
+    competition_coefficient,
+    final_time,
+    time_step
+  ){
+      LV = 
+        function(t, state, parameters){
+           with(as.list(c(state, parameters)), {
+             N = c(N1, N2)
+             dNdt = as.numeric(r * N * (1 - A %*% N / K))
+             list(c(dNdt[1], dNdt[2]))
+           })
+          }
+      
+      times = seq(0, final_time, by = time_step)
+      
+      parameters = 
+        list(
+          r = intrinsic_growth_rate,
+          K = carrying_capacity,
+          A = 
+            matrix(
+              c(1, competition_coefficient[1], competition_coefficient[2], 1), 
+              byrow = TRUE, 
+              nrow = 2
+            )
+        )
+      
+      state = c(N1 = initial_N[1], N2 = initial_N[2])
+      
+      out = ode(y = state, times = times, func = LV, parms = parameters)
+      
+      return(
+        list(
+          parameters = 
+            list(
+              intrinsic_growth_rate, 
+              carrying_capacity, 
+              competition_coefficient
+            ),
+          initial_conditions = initial_N,
+          state = out
+        )
+      )
+   }
+
+Plot_LV = 
+  function(model){
+    as.data.frame(model$state) |>
+    pivot_longer(-time, names_to = 'species', values_to = 'N') |>
+    ggplot(aes(time, N, group = species, color = species)) +
+    geom_line(size = 1) +
+    expand_limits(y = 0) +
+    labs(
+      x = 'Time',
+      y = 'Abundance'
+    )
+  }
+```
+
+```{r}
+model = 
+  LV_Model(
+    initial_N = c(30, 30), 
+    intrinsic_growth_rate = c(1, 1), 
+    carrying_capacity = c(50, 50), 
+    competition_coefficient = c(1.01, 1/1.01), 
+    final_time = 1000, 
+    time_step = 1
+  )
+
+# plot results
+Plot_LV(model)
+```
+## Q5
+Both species did not coexist in the end. N1 went extinct because N2 had a better competition coefficient than N1.
+
+```{r}
+model = 
+  LV_Model(
+    initial_N = c(30, 30), 
+    intrinsic_growth_rate = c(1, 1), 
+    carrying_capacity = c(50, 50), 
+    competition_coefficient = c(1/1.01, 1.01), 
+    final_time = 1000, 
+    time_step = 1
+  )
+
+# plot results
+Plot_LV(model)
+```
+## Q6
+swaping the competition coefficient will result in N1 outcompeting N2.
+
+```{r}
+model = 
+  LV_Model(
+    initial_N = c(30, 30), 
+    intrinsic_growth_rate = c(1, 1), 
+    carrying_capacity = c(50, 50), 
+    competition_coefficient = c(0.3, 0.6), 
+    final_time = 1000, 
+    time_step = 1
+  )
+
+# plot results
+Plot_LV(model)
+```
+## Q7
+Both species were able to coexist under these conditions.
+
+## Q8
+a) Species 2 regulates itself more than species 1. 
+b) species 1 regulates species 2 more than species 2 itself.
+
+```{r}
+initial_N1 = 7
+initial_N2 = 5
+r1 = 1
+r2 = 1
+K2 = 30
+alpha_12 = 1.1
+alpha_21 = 1/alpha_12
+K1 = alpha_12 * K2
+
+# call the Lotka-Volterra model 
+model = 
+  LV_Model(
+    initial_N = c(initial_N1, initial_N2), 
+    intrinsic_growth_rate = c(r1, r2), 
+    carrying_capacity = c(K1, K2), 
+    competition_coefficient = c(alpha_12, alpha_21), 
+    final_time = 50, 
+    time_step = .1
+  )
+
+N1_final = model$state[nrow(model$state), 2]
+N2_final = model$state[nrow(model$state), 3]
+
+# plot results
+Plot_LV(model) +
+  ggtitle(paste('Final abundances: N1 =', round(N1_final), '     N2 =', round(N2_final)))
+```
+## Q9
+Final abundances were not the same as the other initial abundances.
+
+## Q10
+two different species of bird both rely on seeds and bugs as resources.
+
+## Q11
+the preferred resource of consumer 1 is the first resourse while the prefferred resource of consumer 2 is the second resource.
+
+## Q12
+the scenario where each consumer prefers a different resource because then it would allow for less overlap
+
+## Q13
+Scenario 1 is intraspecific competition while scenario 2 is interspecific
+
+```{r}
+## set parameter values
+r = 0.1
+K1 = 100
+K2 = 100
+alpha12 = 0.75
+alpha21 = 0.75
+
+## calculate predicted equilibrium abundances
+N1_equil = (K1 - alpha12 * K2) / (1 - alpha12 * alpha21)
+N2_equil = (K2 - alpha21 * K1) / (1 - alpha12 * alpha21)
+
+## call the Lotka-Volterra model 
+model = 
+  LV_Model(
+    initial_N = c(100, 100), 
+    intrinsic_growth_rate = c(r, r), 
+    carrying_capacity = c(K1, K2), 
+    competition_coefficient = c(alpha12, alpha21), 
+    final_time = 1000, 
+    time_step = 1
+  )
+
+## plot results, adding horizontal dashed lines marking the predicted equilibrium abundances
+Plot_LV(model) +
+  ggtitle(paste('Predicted equilibrium abundances: N1 =', round(N1_equil), '     N2 =', round(N2_equil)))
+
+model = 
+  LV_Model(
+    initial_N = c(100, 90), 
+    intrinsic_growth_rate = c(r, r), 
+    carrying_capacity = c(K1, K2), 
+    competition_coefficient = c(alpha12, alpha21), 
+    final_time = 1000, 
+    time_step = 1
+  )
+
+## plot results, adding horizontal dashed lines marking the predicted equilibrium abundances
+Plot_LV(model) +
+  ggtitle(paste('Predicted equilibrium abundances: N1 =', round(N1_equil), '     N2 =', round(N2_equil)))
+
+
+## set parameter values
+r = 0.1
+K1 = 100
+K2 = 100
+alpha12 = 1.25
+alpha21 = 1.25
+
+## calculate predicted equilibrium abundances
+N1_equil = (K1 - alpha12 * K2) / (1 - alpha12 * alpha21)
+N2_equil = (K2 - alpha21 * K1) / (1 - alpha12 * alpha21)
+
+## call the Lotka-Volterra model 
+model = 
+  LV_Model(
+    initial_N = c(100, 100), 
+    intrinsic_growth_rate = c(r, r), 
+    carrying_capacity = c(K1, K2), 
+    competition_coefficient = c(alpha12, alpha21), 
+    final_time = 1000, 
+    time_step = 1
+  )
+
+## plot results, adding horizontal dashed lines marking the predicted equilibrium abundances
+Plot_LV(model) +
+  ggtitle(paste('Predicted equilibrium abundances: N1 =', round(N1_equil), '     N2 =', round(N2_equil)))
+
+## call the Lotka-Volterra model 
+model = 
+  LV_Model(
+    initial_N = c(100, 90), 
+    intrinsic_growth_rate = c(r, r), 
+    carrying_capacity = c(K1, K2), 
+    competition_coefficient = c(alpha12, alpha21), 
+    final_time = 1000, 
+    time_step = 1
+  )
+
+## plot results, adding horizontal dashed lines marking the predicted equilibrium abundances
+Plot_LV(model) +
+  ggtitle(paste('Predicted equilibrium abundances: N1 =', round(N1_equil), '     N2 =', round(N2_equil)))
+```
+## Q14
+The first two plots shows what happens when both relative abundances are less than 1, resulting in coexistence. The second two plot shows what happens when both relative abundances are more than 1.
+
+## Q15
+scenario 2 and 4 has priority effects where species whose initial population is higher will be the one that out competes the other species while scenario 1 and 2 shows stable coexistence.
+
+## Q16
+species 1 consumes more resource 1 and 2.
+
+## Q17
+this means that species 2 will get out competed by species 1
+
+## Q18
+the competitiveness of species 2 is less than the competitiveness of species 1.
+
+## Q19
+these two species cannot reliably coexist.
+
+## Q20
+---?
+
+## Q21
+Pc will have outcompete PB.
+
