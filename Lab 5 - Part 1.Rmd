@@ -1,0 +1,630 @@
+---
+title: "BIO 356 / BEE 587 Lab Number - Lab Name"
+author: "Brian Wang"
+date: "2/19/24"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+
+# don't forget to copy/paste here all of the libraries required for this week's lab
+library(tidyverse)
+library(gridExtra) ## for plotting function grid.arrange()
+library(deSolve) ## for predator-prey-resource ODE model
+
+theme_set(theme_bw())
+theme_update(panel.grid = element_blank())
+```
+
+## Q1
+The most likely explanation for the limitation on tropic level is the amount of energy available to each subsequent level is only about 10% of the energy available in the current tropic level. Therefore, the number of tropic level is limited by the amount of energy available to the last tropic level.
+
+## Q2
+For this equation, the prey population will linearly increase year over year. This is because there are no predators to remove prey from the population.
+
+## Q3
+assuming hte that population of predators is non-zero at the start of the simulation the predator population will decrease because there is no prey for the predators to attack in order to maintain or increase the predator population.
+
+```{r}
+PV_Model = 
+  function(
+    V0,
+    P0,
+    prey_intrinsic_net_growth_rate,
+    prey_carrying_capacity = 1e6,
+    predator_intrinsic_death_rate,
+    attack_rate,
+    conversion_efficiency,
+    final_year,
+    handling_time = 0
+  ){
+    V_record = V = V0
+    P_record = P = P0
+    
+    for(time in 1:final_year){
+      bv = prey_intrinsic_net_growth_rate * (1 - V / prey_carrying_capacity)
+      dv = attack_rate / (1 + attack_rate * handling_time * V) * P  
+      
+      bp = conversion_efficiency * attack_rate / (1 + attack_rate * handling_time * V) * V
+      dp = predator_intrinsic_death_rate
+      
+      V = pmax(0, round((bv - dv) * V))
+      P = max(0, round((bp - dp) * P))
+      
+      V_record = c(V_record, V)
+      P_record = c(P_record, P)
+      
+      if(any(V == 0, P == 0)) break
+    }
+    
+    return(
+      list(
+        parameters = 
+          list(
+            prey_intrinsic_net_growth_rate = prey_intrinsic_net_growth_rate,
+            prey_carrying_capacity = prey_carrying_capacity, 
+            attack_rate = attack_rate,
+            conversion_efficiency = conversion_efficiency,
+            predator_intrinsic_death_rate = predator_intrinsic_death_rate,
+            final_year = final_year
+          ),
+        initial_conditions = 
+          list(
+            V0 = V0,
+            P0 = P0
+          ),
+        state = 
+          tibble(
+            time = 0:time,
+            V = V_record,
+            P = P_record
+          )
+      )
+    ) 
+  }
+```
+
+```{r}
+PV_Plot = 
+  function(model){
+    plot_phase = 
+      model$state |>
+      ggplot(aes(V, P, color = time)) +
+      geom_path() + 
+      geom_point() +
+      theme(aspect.ratio = 1) +
+      scale_color_gradient(
+        low = 'royalblue1', 
+        high = 'tan2'
+      )
+    
+    
+    plot_time = 
+      model$state |>
+      pivot_longer(
+        -time, 
+        names_to = 'species', 
+        values_to = 'abundance'
+      ) |>
+      ggplot(
+        aes(
+          time, 
+          abundance, 
+          group = species, 
+          color = species
+        )
+      ) +
+      geom_point() +
+      geom_line() +
+      theme(aspect.ratio = 1)
+    
+    grid.arrange(
+      plot_time,
+      plot_phase,
+      nrow = 1
+    )
+  }
+```
+
+```{r}
+PV_Plot(
+  model =
+    PV_Model(
+      V0 = 220,
+      P0 = 20,
+      prey_intrinsic_net_growth_rate = 2,
+      predator_intrinsic_death_rate = 0.1,
+      attack_rate = 0.05,
+      conversion_efficiency = 0.1,
+      final_year = 100
+    )
+)
+```
+## Q4
+The equilibrium abundances for P and V is 20 and 220, respectively. Running the simulation will these starting parameters should result in a prey and predator population that does not change over time.
+
+```{r}
+PV_Plot(
+  model =
+    PV_Model(
+      V0 = 220,
+      P0 = 21,
+      prey_intrinsic_net_growth_rate = 2,
+      predator_intrinsic_death_rate = 0.1,
+      attack_rate = 0.05,
+      conversion_efficiency = 0.1,
+      final_year = 100
+    )
+)
+```
+## Q5
+Increasing the initial predator population by just 1 resulted in the prey population going extinct. The results of this model suggests that having a high predator population can result in the prey population going extinct. however, this model does not quite represent the predator prey relationship quite exactly because there are many instances of sustainable predator-prey populations even in the presence of perturbations to population equilibrium.
+
+```{r}
+PV_Plot(
+  model =
+    PV_Model(
+      V0 = 220,
+      P0 = 21,
+      prey_intrinsic_net_growth_rate = 2,
+      prey_carrying_capacity = 2000,
+      predator_intrinsic_death_rate = .1,
+      attack_rate = .05,
+      conversion_efficiency = .1,
+      final_year = 100
+    )
+)
+```
+
+## Q6
+Increasing the carrying capacity of the prey resulted in the prey going extinct when the predator population got too high. This phenomenon is called the paradox of enrichment where increasing the carrying capacity will actually destabilize the predator-prey dynamic. Given what I know, this is caused by the growth of predators being out of sync with the prey population, resulting in the highest predator population when the prey population is starting to decline.
+
+```{r}
+PV_Plot(
+  model =
+    PV_Model(
+      V0 = 220,
+      P0 = 20,
+      prey_intrinsic_net_growth_rate = 2,
+      prey_carrying_capacity = 1000,
+      predator_intrinsic_death_rate = .1,
+      attack_rate = .05,
+      conversion_efficiency = .1,
+      final_year = 100,
+      handling_time = 0.03
+    )
+)
+```
+
+## Q7
+changing the code to the setting described in lab resulted in a stable predator-prey population. The contribution of predator satiation helps with maintaining stable equilibrium because it simulates how predators don't over-feed when they are full and only hunting when they are hungry. This allows the herd to replace any losses due to predators.
+
+```{r}
+PVV_Model = 
+  function(
+    V0,
+    P0,
+    prey_intrinsic_net_growth_rate,
+    prey_carrying_capacity = c(1e6, 1e6),
+    predator_intrinsic_death_rate,
+    attack_rate,
+    conversion_efficiency,
+    final_year,
+    handling_time = 0,
+    predation_mode = 'full_switch'
+  ){
+    V_record = V = V0
+    P_record = P = P0
+    
+    for(time in 1:final_year){
+      if(predation_mode == 'full_switch') alpha = attack_rate * (V == max(V))
+      if(predation_mode == 'proportional_switch') alpha = attack_rate * V / sum(V)
+      bv = prey_intrinsic_net_growth_rate * (1 - V / prey_carrying_capacity)
+      dv = alpha / (1 + alpha * handling_time * V) * P  
+      
+      bp = sum(conversion_efficiency * alpha / (1 + alpha * handling_time * V) * V)
+      dp = predator_intrinsic_death_rate
+      
+      V = pmax(0, round((bv - dv) * V))
+      P = max(0, round((bp - dp) * P))
+      
+      V_record = rbind(V_record, V)
+      P_record = c(P_record, P)
+      
+      if(any(V == 0, P == 0)) break
+    }
+    
+    return(
+      list(
+        parameters = 
+          list(
+            prey_intrinsic_net_growth_rate = prey_intrinsic_net_growth_rate,
+            prey_carrying_capacity = prey_carrying_capacity, 
+            attack_rate = attack_rate,
+            conversion_efficiency = conversion_efficiency,
+            predator_intrinsic_death_rate = predator_intrinsic_death_rate,
+            final_year = final_year
+          ),
+        initial_conditions = 
+          list(
+            V0 = V0,
+            P0 = P0
+          ),
+        state = 
+          tibble(
+            time = 0:time,
+            V1 = V_record[, 1],
+            V2 = V_record[, 2],
+            P = P_record
+          )
+      )
+    ) 
+  }
+```
+
+```{r}
+PVV_Plot = 
+  function(model, plots = 'time_series'){
+    plot_phase_VV = 
+      model$state |>
+      ggplot(aes(V1, V2, color = time)) +
+      geom_path() + 
+      geom_point() +
+      theme(aspect.ratio = 1) +
+      scale_color_gradient(
+        low = 'royalblue1', 
+        high = 'tan2'
+      )
+    
+    plot_phase_PV1 = 
+      model$state |>
+      ggplot(aes(V1, P, color = time)) +
+      geom_path() + 
+      geom_point() +
+      theme(aspect.ratio = 1) +
+      scale_color_gradient(
+        low = 'royalblue1', 
+        high = 'tan2'
+      ) +
+      scale_color_gradient(
+        low = 'royalblue1', 
+        high = 'tan2'
+      )
+    
+    plot_phase_PV2 = 
+      model$state |>
+      ggplot(aes(V2, P, color = time)) +
+      geom_path() + 
+      geom_point() +
+      theme(aspect.ratio = 1) +
+      scale_color_gradient(
+        low = 'royalblue1', 
+        high = 'tan2'
+      )
+    
+    plot_time = 
+      model$state |>
+      pivot_longer(-time, names_to = 'species', values_to = 'abundance') |>
+      ggplot(aes(time, abundance, group = species, color = species)) +
+      geom_line(linewidth = 1) +
+      theme(aspect.ratio = 1)
+    
+    if(plots == 'all'){
+      grid.arrange(
+        plot_time,
+        plot_phase_VV,
+        plot_phase_PV1,
+        plot_phase_PV2,
+        nrow = 2
+      )
+    }else plot_time
+    
+  }
+```
+
+```{r}
+model =
+    PVV_Model(
+      V0 = c(220, 10),
+      P0 = 21,
+      prey_intrinsic_net_growth_rate = c(2, 2.1),
+      prey_carrying_capacity = c(1000, 750),
+      predator_intrinsic_death_rate = .1,
+      attack_rate = .05,
+      conversion_efficiency = .1,
+      final_year = 50,
+      handling_time = 0.02,
+      predation_mode = 'full_switch'
+    )
+
+PVV_Plot(
+  model = model,
+  plots = 'all'
+)
+
+model$state |> tail(10)
+```
+```{r}
+model =
+    PVV_Model(
+      V0 = c(220, 10),
+      P0 = 21,
+      prey_intrinsic_net_growth_rate = c(2, 2.1),
+      prey_carrying_capacity = c(1000, 750),
+      predator_intrinsic_death_rate = .1,
+      attack_rate = .05,
+      conversion_efficiency = .1,
+      final_year = 50,
+      handling_time = 0.03,
+      predation_mode = 'full_switch'
+    )
+
+PVV_Plot(
+  model = model,
+  plots = 'all'
+)
+
+model$state |> tail(10)
+```
+```{r}
+model =
+    PVV_Model(
+      V0 = c(220, 10),
+      P0 = 21,
+      prey_intrinsic_net_growth_rate = c(2, 2.1),
+      prey_carrying_capacity = c(1000, 750),
+      predator_intrinsic_death_rate = .1,
+      attack_rate = .05,
+      conversion_efficiency = .1,
+      final_year = 50,
+      handling_time = 0.04,
+      predation_mode = 'full_switch'
+    )
+
+PVV_Plot(
+  model = model,
+  plots = 'all'
+)
+
+model$state |> tail(10)
+```
+
+## Q8
+
+increasing the handling time results in a higher prey population and lower predator population. I believe this is because handling time simulates how difficult it is to catch prey to eat. 
+
+```{r}
+model =
+    PVV_Model(
+      V0 = c(220, 10),
+      P0 = 21,
+      prey_intrinsic_net_growth_rate = c(2, 2.1),
+      prey_carrying_capacity = c(1000, 750),
+      predator_intrinsic_death_rate = .1,
+      attack_rate = .05,
+      conversion_efficiency = .1,
+      final_year = 50,
+      handling_time = 0.04,
+      predation_mode = 'proportional_switch'
+    )
+
+PVV_Plot(
+  model = model,
+  plots = 'all'
+)
+
+model$state |> tail(10)
+```
+
+## Q9
+Switching this resulted in prey and predator population being much closer together while also keeping them at a stable population.
+
+```{r}
+PVVR_Model = 
+  function(
+    R0,
+    V0,
+    P0,
+    resource_supply,
+    consumption_rates,
+    predation_rates,
+    prey_mortality,
+    predator_mortality,
+    prey_efficiency,
+    predator_efficiency,
+    final_year,
+    time_step
+  ){
+    PVVR = function(t, state, parameters){
+      with(
+        as.list(c(state, parameters)), {
+          dRdt = s - c1 * V1 *R - c2 * V2 *R
+          dV1dt = (ev1 * c1 * R - a1 * P - dv1) * V1
+          dV2dt = (ev2 * c2 * R - a2 * P - dv2) * V2
+          dPdt = (ep * a1 * V1 + ep * a2 * V2 - dp) * P
+        
+          list(c(dRdt, dV1dt, dV2dt, dPdt))  
+        }
+      )
+    }
+    
+    parameters = 
+      c(
+        s = resource_supply,
+        c = consumption_rates,
+        a = predation_rates,
+        dv = prey_mortality,
+        dp = predator_mortality,
+        ev = prey_efficiency,
+        ep = predator_efficiency
+      )
+    
+    state = c(R = R0, V1 = V0[1], V2 = V0[2], P = P0)
+    
+    times = seq(0, final_year, by = time_step)
+      
+    out = ode(y = state, times = times, func = PVVR, parms = parameters)
+    
+    return(
+      list(
+        parameters = 
+          list(
+            resource_supply,
+            consumption_rates,
+            predation_rates,
+            prey_mortality,
+            predator_mortality,
+            prey_efficiency,
+            predator_efficiency,
+            final_year = final_year
+          ),
+        initial_conditions = 
+          list(
+            R0 = R0,
+            V0 = V0,
+            P0 = P0
+          ),
+        state = out
+      )
+    ) 
+  }
+```
+
+## Q10
+a) phytoplankton 1 is the faster consumer of nitrate
+b) phytoplankton 1 is the preferred prey of the copepod
+c) phytoplankton 1 has the lowest mortality
+
+```{r}
+model =
+  PVVR_Model(
+    R0 = 1000,
+    V0 = c(100, 40),
+    P0 = 20,
+    resource_supply = 1e4,
+    consumption_rates = c(.07, .03),
+    predation_rates = c(.008, .002),
+    prey_mortality = c(.02, .13),
+    predator_mortality = .01,
+    prey_efficiency = c(.01, .01),
+    predator_efficiency = .01,
+    final_year = 1500,
+    time_step = 1
+  )
+ 
+plot = 
+  model$state[, 1:5] |>
+  as_tibble() |>
+  rename(predator = 'P', resource = 'R', `prey 1` = V1, `prey 2` = V2) |>
+  pivot_longer(-time, names_to = 'species', values_to = 'abundance') |>
+  ggplot(aes(time, abundance)) +
+  geom_line(color = rgb(153 / 255, 0, 0)) +
+  facet_wrap(~species, scales = 'free') +
+  theme(aspect.ratio = 1)
+
+plot
+```
+```{r}
+model =
+  PVVR_Model(
+    R0 = 800,
+    V0 = c(120, 40),
+    P0 = 20,
+    resource_supply = 1e4,
+    consumption_rates = c(.07, .03),
+    predation_rates = c(.008, .002),
+    prey_mortality = c(.02, .13),
+    predator_mortality = .01,
+    prey_efficiency = c(.01, .01),
+    predator_efficiency = .01,
+    final_year = 1500,
+    time_step = 1
+  )
+ 
+plot = 
+  model$state[, 1:5] |>
+  as_tibble() |>
+  rename(predator = 'P', resource = 'R', `prey 1` = V1, `prey 2` = V2) |>
+  pivot_longer(-time, names_to = 'species', values_to = 'abundance') |>
+  ggplot(aes(time, abundance)) +
+  geom_line(color = rgb(153 / 255, 0, 0)) +
+  facet_wrap(~species, scales = 'free') +
+  theme(aspect.ratio = 1)
+
+plot
+```
+
+##Q11
+I decreased the starting abundance of resources to 800 and increased the starting abundance of prey to 120. Running the plot again we can see that all 4 groups gravitated towards that stable equilibrium.
+
+```{r}
+model =
+  PVVR_Model(
+    R0 = 1000,
+    V0 = c(100, 40),
+    P0 = 20,
+    resource_supply = 1e4,
+    consumption_rates = c(.07, .03),
+    predation_rates = c(.008, .002),
+    prey_mortality = c(.02, .13),
+    predator_mortality = .01,
+    prey_efficiency = c(.01, .01),
+    predator_efficiency = .01,
+    final_year = 1500,
+    time_step = 1
+  )
+ 
+plot = 
+  model$state[, 1:5] |>
+  as_tibble() |>
+  rename(predator = 'P', resource = 'R', `prey 1` = V1, `prey 2` = V2) |>
+  pivot_longer(-time, names_to = 'species', values_to = 'abundance') |>
+  ggplot(aes(time, abundance)) +
+  geom_line(color = rgb(153 / 255, 0, 0)) +
+  facet_wrap(~species, scales = 'free') +
+  theme(aspect.ratio = 1)
+
+plot
+```
+
+```{r}
+model =
+  PVVR_Model(
+    R0 = 800,
+    V0 = c(120, 40),
+    P0 = 0,
+    resource_supply = 1e4,
+    consumption_rates = c(.07, .03),
+    predation_rates = c(.008, .002),
+    prey_mortality = c(.02, .13),
+    predator_mortality = .01,
+    prey_efficiency = c(.01, .01),
+    predator_efficiency = .01,
+    final_year = 1500,
+    time_step = 1
+  )
+ 
+plot = 
+  model$state[, 1:5] |>
+  as_tibble() |>
+  rename(predator = 'P', resource = 'R', `prey 1` = V1, `prey 2` = V2) |>
+  pivot_longer(-time, names_to = 'species', values_to = 'abundance') |>
+  ggplot(aes(time, abundance)) +
+  geom_line(color = rgb(153 / 255, 0, 0)) +
+  facet_wrap(~species, scales = 'free') +
+  theme(aspect.ratio = 1)
+
+plot
+```
+
+## Q12
+Removing the predator from the system will likely result in the extinction of prey 2 becauese prey 1 is better at exploiting the resources. running the plot shows that prey 2 was driven to extinction nearly instantly.
+  
+## Q13
+Trophic cascade is the change in abundance due to teh removal of a trophic level. removing the predator resulted in an increase in prey population while also removing any resources because the prey population is not maintained by the prescene of predators.
+
+## Q14
+Beavers are another type of keystone species. They create habitates where other species can thrive.

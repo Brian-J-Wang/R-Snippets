@@ -1,0 +1,171 @@
+---
+title: "BIO 356 / BEE 587 0 part 2 - Intro to R"
+author: "Brian Wang"
+date: "1/29/24"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+
+# don't forget to copy/paste here all of the libraries required for this week's lab
+library(tidyverse)
+library(rio)
+
+theme_set(theme_bw())
+```
+
+
+
+
+## Q14
+
+Gives the average mpg of the vehicles in mtcars. The value outputted is 20.090
+
+```{r}
+mean(mtcars$mpg)
+```
+
+## Q15
+
+Average is 3.1895
+
+```{r}
+var(mtcars$cyl)
+```
+
+## Q16
+
+Code Below
+
+```{r}
+characters = 
+  tibble(
+    name = c('Calvin', 'Hobbes', 'Garfield', 'Popeye', 'Bugs Bunny', 'Lisa Simpson', 'Woodstock'),
+    species = c('human', 'tiger', 'cat', 'human', 'rabbit', 'human', 'canary'),
+    comic_strip = c(TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, TRUE),
+    year_created = c(1985, 1985, 1978, 1929, 1940, 1987, 1967)
+  )
+
+characters |> arrange(year_created)
+```
+
+## Q17
+
+Code below.
+
+```{r}
+mtcars |> 
+  rownames_to_column(var = "model") |>
+  as_tibble() |>
+  select(model, mpg, cyl, hp) |>
+  mutate(kml = mpg * 0.43) |>
+  filter(mpg > 22)
+```
+
+## Q18
+
+new_abundance is 16098 with a standard error of 834.
+
+```{r}
+github_address = 'https://github.com/rafaeldandrea/BIO-356/blob/master/gray_whales.xlsx?raw=true'
+
+whale_dataset = 
+  rio::import(github_address, range = 'B6:G28') |> 
+  as_tibble()
+
+whale_dataset
+```
+
+## Q19
+
+We would get an error if we piped it in like this "plot_whales |> goem_line". instead use the "+" and include it when the plot is being created.
+
+```{r}
+plot_whales = 
+  whale_dataset |> 
+  ggplot(aes(End_dates, New_abundance)) + 
+  geom_point() +
+  geom_line()
+
+plot_whales
+```
+
+## Q20
+```{r}
+plot_whales = 
+  whale_dataset |> 
+  ggplot(aes(End_dates, New_abundance)) + 
+  geom_line(color = 'green') +
+  geom_errorbar(
+    aes(
+      x = End_dates, 
+      ymin = New_abundance + New_SE, 
+      ymax = New_abundance - New_SE
+    ),
+    color = 'blue'
+  ) +
+  geom_point(color = 'red') +
+  labs(
+    x = 'Calendar year',
+    y = 'Population size'
+  ) +
+  theme(aspect.ratio = 1) +
+  ggtitle('Whale population estimates')
+
+plot_whales
+```
+
+## Q21
+
+it shows the result below. This is because '=' is an assignment operator while '==' checks for equivalence.
+
+```{r error = TRUE}
+if(2 > 3){
+  print('Two is greater than three')
+} else if(2 = 3){ 
+  print('Two is equal to three')
+} else {
+  print('Two is less than three')
+}
+```
+
+## Q22
+
+```{r}
+for (i in 1:5) {
+ if (i %% 2 == 1) {
+  print(i)
+ }
+}
+```
+
+## Q23
+
+Changing the growth rate to a value below 1.0 will result in a decrease of population.
+
+```{r}
+lambda = 0.9
+N = 50
+N_vector = N
+for(year in 1:20){
+  N = round(lambda * N)
+  N_vector = c(N_vector, N)
+}
+
+data = 
+  tibble(
+    year = 0:20,
+    abundance = N_vector
+  )
+
+plot = 
+  data |>
+  ggplot(aes(year, abundance)) +
+  geom_line(color = 'grey') +
+  geom_point()
+
+plot
+```

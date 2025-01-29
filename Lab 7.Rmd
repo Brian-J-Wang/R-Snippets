@@ -1,0 +1,207 @@
+---
+title: "BIO 356 / BEE 587 Lab 7 - Infectious Disease and Parasitism - Part 1"
+author: "Brian Wang"
+date: "2/19/24"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+
+# don't forget to copy/paste here all of the libraries required for this week's lab
+library(tidyverse)
+library(gridExtra) ## for plotting function grid.arrange()
+library(deSolve) ## for predator-prey-resource ODE model
+library(magrittr) ## for pipe symbol %<>%
+library(knitr) ## for table-viewing function kable()
+
+theme_set(theme_bw())
+theme_update(
+  panel.grid = element_blank(),
+  aspect.ratio = 1
+)
+```
+
+```{r}
+SIR_Model = 
+  function(
+    initial_S,
+    initial_I,
+    initial_R,
+    infection_rate,
+    recovery_rate,
+    mortality_rate,
+    final_time,
+    time_step
+  ){
+      SIR = 
+        function(t, state, parameters){
+           with(as.list(c(state, parameters)), {
+             dSdt = -beta * S * I
+             dIdt = beta * I * S - nu * I - mu * I
+             dRdt = nu * I
+             
+             list(c(dSdt, dIdt, dRdt))
+           })
+          }
+      
+      times = seq(0, final_time, by = time_step)
+      
+      parameters = 
+        c(
+          beta = infection_rate,
+          nu = recovery_rate,
+          mu = mortality_rate
+        )
+      
+      state = 
+        c(
+          S = initial_S,
+          I = initial_I,
+          R = initial_R
+        )
+      
+      out = ode(y = state, times = times, func = SIR, parms = parameters)
+      
+      return(
+        list(
+          parameters = 
+            list(
+              infection_rate, 
+              recovery_rate, 
+              mortality_rate
+            ),
+          initial_conditions = list(initial_S, initial_I, initial_R),
+          state = out
+        )
+      )
+   }
+
+Plot_SIR = function(model){
+  as.data.frame(model$state) |>
+    pivot_longer(-time, names_to = 'type', values_to = 'proportion') |>
+    mutate(type = factor(type, levels = c('S', 'I', 'R'))) |>
+    ggplot(aes(time, 100 * proportion)) +
+    geom_line(aes(color = type), linewidth = 1) +
+    facet_wrap(~type, scales = 'free') +
+    labs(
+      x = 'time (days)',
+      y = 'percentage of the population'
+    ) +
+    theme(
+      legend.position = 'none',
+      strip.background = element_rect(fill = 'orange')
+    )
+}
+```
+
+```{r}
+Plot_SIR(
+  model = 
+    SIR_Model(
+      initial_S = .999,
+      initial_I = .001,
+      initial_R = 0,
+      infection_rate = 2,
+      recovery_rate = 0,
+      mortality_rate = 0,
+      final_time = 30,
+      time_step = .1
+    )
+) +
+  ggtitle('Scenario 1')
+```
+
+
+## Q1
+Decreasing the infection rate will only delay the time it takes for the entire population to become infected. Because the population can only go from s -> I -> R. the entire population will be infected at one point.
+
+## Q2
+a) A scenario with a high transmissivity and low recover will produce these curves. the entire population will quickly become infected and will slowly recovery due to the high infectivity but low recovery rate.
+```{r}
+Plot_SIR(
+  model = 
+    SIR_Model(
+      initial_S = .999,
+      initial_I = .001,
+      initial_R = 0,
+      infection_rate = 10,
+      recovery_rate = 0.1,
+      mortality_rate = 0,
+      final_time = 30,
+      time_step = .1
+    )
+) +
+  ggtitle('High Transmissivity, low recovery')
+```
+b) In a population will low transmissivity and high recovery rate, we can expect that only a small proportion of the population will become infected. Infact, barely a percent of the population becomes infected before the disease dies out.
+```{r}
+Plot_SIR(
+  model = 
+    SIR_Model(
+      initial_S = .999,
+      initial_I = .001,
+      initial_R = 0,
+      infection_rate = 0.1,
+      recovery_rate = 10,
+      mortality_rate = 0,
+      final_time = 30,
+      time_step = .1
+    )
+) +
+  ggtitle('low Transmissivity, high recovery')
+```
+
+## Q3
+The pathogens are ordered from most transmissible to least transmissible.
+a) beta = 2, gamma = 0, R_0 = inf, high transmissivity, the entire population will become infected. Will become a epidemic
+c) beta = 10, gamma = 0.1 R_0 = 100. Can become a epidemic
+b) beta = 2, gamma = 1, R_0 = 2. Can become an epidemic
+d) beta = 0.1 gamma = 10, R_0 = 0.01. Can't become an epidemic
+
+## Q4
+a) HIT = 1 - 1/inf = 100%
+b) HIT = 1 - 1/2  = 50%
+c) HIT = 1 - 1/100= 99%
+d) HIT = because R_0 < 1 => 0 %
+
+## Q5
+In the SIR model, the population that can become infected with the diease cannot be infected again once they are recovered. This means that the virus will have have a smaller population to work with as time goes on, eventually leading to the virus dying out. in the SIS model, the population that becomes infected with the disease can become infected again, this gives the virus an unlimited supply of hosts that they can infect again and again.
+
+## Q6
+Having only half of the population vaccinated has already prevented the disease from spreading and infecting the entire population. The disease was still able to persist in small highly interconnected pockets for much long however.
+
+## Q7
+The flu can be described by both the SIR model and the SIS model. If we were to look at the flu on a year by year basis, then we can say that the SIR model best described it because once a person recovers from that strain, they are no longer susceptible to it. However, the SIS model is best used when we are looking at cases throughout the years as individuals can become susceptible again.
+
+## Q8
+we would substitute R_0 with R_e. In other words, the critical proportion of the population would be S_c = 1 - 1 / R_e
+
+## Q9
+a) vaccine efficacy means the ability of the vaccine to prevent a person from becoming infected if they were to become infected otherwise. b) vaccine efficacy would be 1 - 0.05 / 1 = 95%
+
+## Q10
+a) the estinated vaccine efficacy is 0.495
+b) the confidence interval dipped below 30% therefore the vaccine does not meet the F.D.A approval standard.
+```{r}
+CI95 = function(CV, NV, CP, NP){
+  RR = (CV / NV) / (CP / NP)
+  varlogRR = 1 / CV - 1 / NV + 1 / CP - 1 / NV
+  CI_lower = 100 * (1 - RR * exp(+1.96 * sqrt(varlogRR)))
+  CI_upper = 100 * (1 - RR * exp(-1.96 * sqrt(varlogRR)))
+  return(round(c(CI_lower, CI_upper)))
+}
+
+CI95(10, 10100, 20, 9900)
+```
+
+## Q11
+in option B, the nodes with the most connections will get vaccinated this means the virus will lose nodes that are capable of spreading to many other nodes. Compared the random selection, these nodes helps prevent the spread to many other nodes.
+
+## Q12
+vaccinating the neighbor notes of these super spreaders helps prevent the superspreader from infecting other people through third party contact.
+
+## Q13
+We often cannot get people to do things for the benefit of the public. instead campaigns that gets the most people vaccinate is an acceptable strategy because limiting the spread of the disease and flattening the curve still prevents the healthcare system from collapsing

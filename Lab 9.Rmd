@@ -1,0 +1,93 @@
+---
+title: "BIO 356 / BEE 587 Lab 7 - Infectious Disease and Parasitism - Part 1"
+author: "Brian Wang"
+date: "2/19/24"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE}
+library(gridExtra) ## for plotting function grid.arrange()
+library(deSolve) ## for predator-prey-resource ODE model
+library(magrittr) ## for pipe symbol %<>%
+library(metR) ## for geom_arrow()
+library(OceanView) ## for vector field plots
+library(tidyverse)
+```
+
+## Q1
+Isoclines are regions where the rate of change of one species does not change. The intersection of two isoclines for two different species will result in an equilibrium point or a stable point.
+
+## Q2
+There are 4. (0,0), (0,1), (1,0), (~1.1, ~1.1).
+
+## Q3
+a) since the interaction coefficient is 0, both species are not affected by each other and undergo regular logistic growth in isolation.
+b) ![Phase plane of the interaction between two species who interaction coefficient is 0][q3.png]
+c) compared to the phase plane above, the phase plane when opening the interactive app has a higher poisitive interaction coefficient. The isoclines in the above phase plane  has a higher slope and the non-zero equilibrium point has is higher as well.
+
+## Q4
+a) if both values are negative, this correspond to a competitive interaction. 
+b) If one is negative and the other is positive, then this correspond to a parasitic interaction.
+c) Compared to the non-interactive scenario the presence of one species will result in a decrease in population for the other species. Both species will reach an equilibrium point that is lower than the equilibrium point if one of the other species did not exist.
+
+## Q5
+increasing both a1 and a2 will result in a higher equilibrium population for both species. when the product of a1 and a2 is 1, neither species can exist without the other but when both of these species exist together in the same space, they will experience unbound growth because the two isoclines are parallel and will not intersection.
+![Phase plane of the interaction between two species when the product of the interaction coefficient is 1][q5.png]
+
+## Q6
+When both interaction coefficents are negative, neither species can coexist in the presence of the other species. The species that survives is dependent on the initial population of either species. if one of the species has a higher initial population than the other, then that species will out-compete the other species that have a lower initial population. There may be an unstable equilibrium when the initial population of the species are the same...
+![phase plane of the interaction between two species when the peoduct of the interaction coefficient is -1][q6.png]
+
+## Q7
+When a1 = 1.5 and a2 = 1, there does not seem to be a finite equilibrium because the isoclines are diverging.
+When h2 and h1 are changed to 2 and 1, respectively, a stable equilibrium forms over (~1.6, ~1.6). The isocline actually curves inwards and converges to create a stable equilibrium point.
+![phase plane of the interaction between two species when a1 = 1.5, a2 = 1, h2 = 2, h1 = 1][q7.png]
+
+## Q8
+Using large negative numbers still results in a situation where there is a stabile equilibrium, though as a1 and a2 decreases the equilibrium.
+
+## Q9
+Antibiotics are excellent at killing most of the infectious bacteria. However, misusing antibiotics, especially not completing the prescription of them can cause super-bacteria to evolvedwhich is resistant to that specific anti-biotic.
+
+## Q10
+it's a parasitic relation
+
+## Q11
+starting with any initial population, the population of both species will trend towards 0.
+
+## Q12
+Increasing the isoline will result in the isoclines moving closer towards each other. if one of the "a" is less than 1, as long as the other coefficient is significantly higher.
+
+## Q13
+a) setting a1 to 5 and a2 to 4 will allow both species population to grow to infinity.
+b) setting a1 to 0.3 and a2 to 0.2 causes the phase plane to gravitate towards 0 for both species. this equilibrium point is a stable point because any population perturbation will result in the species population returning to 0.
+![phase plane of the mutaul interaction between two species when a1 = 0.3 and a2 = 0.2][q13.png]
+
+## Q14
+a) with the same settings as 13a, there are two equilibrium points for this graph, one at 0, 0 and another one at 2.1, 2.1.
+![][q14a.png]
+
+b) with the same settings as 13b, there is only one equilibrium points for this graph at 0, 0.
+![][q14b.png]
+
+## Q15
+plants growing in untreated soils should show a stronger reaction to inoculation because plant fertilizers typically containers nitrogen that is readily usable by plants
+
+## Q16
+The nnon-N-fixing plants should have a stronger reaction to the mycorrhizal fungi because it is dependent on other methods to get nitrogen.
+
+## Q17
+a) There seem to be middle ground where too much root colonization will result in lower overall production.
+
+b) increasing root colonization results in decreasing production.
+
+## Q18
+The rempd shows that allocating too much sugars to the fungi will negatively impact the survival rate of the plant.
+
+## Q19
+around 1.1, around 2.1 the fungi becomes parasitic.
+
+
+S

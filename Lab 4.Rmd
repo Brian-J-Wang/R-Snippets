@@ -1,0 +1,311 @@
+---
+title: "BIO 356 / BEE 587 Lab Number - Lab Name"
+author: "Brian Wang"
+date: "2/19/24"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+
+# don't forget to copy/paste here all of the libraries required for this week's lab
+library(tidyverse)
+library(spatstat) ## for Ripley's K analysis
+library(igraph) ## for community-finding analysis
+library(ggplotify) ## for function as.ggplot()
+library(wordspace) ## for function dist.matrix()
+
+theme_set(theme_bw())
+theme_update(panel.grid = element_blank())
+```
+
+
+```{r}
+bci = 
+  get(
+    load(
+      url(
+        'https://github.com/rafaeldandrea/BCI/blob/master/bci.full7.rdata?raw=true'
+      )
+    )
+  ) |>
+  as_tibble()
+bci = 
+  bci |>
+  select(quadrat, gx, gy, sp, dbh)
+bci = 
+  bci |>
+  filter(dbh >= 100)
+
+bci
+```
+
+## Q1
+A possible issue with using the single dbh cutoff is that different species of trees grow in different ways and the dbh measurement may not capture all the tree species that has recruited past the sapling stage in addition to capturing trees that met the threshold but is still in the sapling stage. An alternative method for filtering trees that has recruited past the sapling stage is to take the trees that has already began producing mature seeds or their equivalent.
+
+```{r}
+plot_bci = 
+  bci |>
+  ggplot(aes(gx, gy, group = sp, color = sp)) +
+  theme(
+    legend.position = 'none',
+    aspect.ratio = 0.5
+  )
+
+plot_bci +
+  geom_point() +
+  coord_cartesian(xlim = c(400,600), ylim = c(200, 300))
+```
+
+```{r}
+plot_bci +
+  geom_point() +
+  theme(panel.grid.major = element_line(color = 'grey')) +
+  scale_x_continuous(breaks = seq(400, 600, 20)) +
+  scale_y_continuous(breaks = seq(200, 300, 20)) +
+  coord_cartesian(xlim = c(400,600), ylim = c(200, 300))
+```
+
+```{r}
+tabulation = 
+  bci |>
+  group_by(quadrat) |>
+  count() |>
+  ungroup()
+
+tabulation
+
+lambda = mean(tabulation$n)
+
+lambda
+```
+
+## Q2
+There is an average of 16.6416 trees per quadrat ans 1250 quadrats in the plot. 16.6416 * 1250 = 20802 trees in the plot that has recruited past the sapling stage.
+
+## Q3
+Typing in the function reveals the same number as the calculation above.
+
+```{r}
+bci |> nrow()
+```
+## Q4
+The variance calculated was 15.7, which is relatively close to the average of 16.6 trees per quadrant. I would say that the distribution of trees in Barro Colorado does follow a poisson distribution.
+
+```{r}
+variance = var(tabulation$n)
+
+variance
+```
+```{r}
+data_hist = hist(tabulation$n, plot = FALSE, breaks = 35)
+
+observed = 
+  tibble(
+    n = data_hist$mids,
+    density = data_hist$density
+  )
+
+expected = 
+  tibble(
+    n = (min(tabulation$n) - 1):(max(tabulation$n) + 1),
+    density = dpois(n, lambda = lambda)
+  )
+
+plot_histogram = 
+  ggplot() +
+  geom_col(data = observed, aes(n, density), color = 'black', fill = 'grey50') +
+  geom_line(data = expected, aes(n, density), size = 1.5, color = rgb(153/255, 0, 0)) +
+  theme(aspect.ratio = .5) +
+  labs(x = 'Tree count', y = 'Frequency') +
+  ggtitle('Histogram of tree counts across quadrats')
+
+plot_histogram
+```
+## Q5
+The Poisson fit underpredicts sparse plots while overpredicting crowed quadrats. Using the graph that shows all 1250 quadrats we can see that there are areas where the density of trees is higher than other areas, this pulls the poisson fit to the right and causes the underprediction and over prediction that we see in the chart above.
+
+## Q6
+The empirical distribution is always monotonic because the graph takes the proportion of trees at each tree count and adds it to the cumulative proportion of trees. There isn't a point in the graph where the proportion of trees at a tree count negative, thus the cumulative proportion cannot decrease.
+
+```{r}
+plot_gustsu = 
+  bci |>
+  filter(sp == 'gustsu') |>
+  ggplot(aes(gx, gy, color = sp)) +
+  theme(
+    legend.position = 'none',
+    aspect.ratio = 0.5
+  ) +
+  ggtitle('Gustavia superba')
+
+plot_gustsu +
+  geom_point()
+
+plot_gustsu +
+  geom_point(size = .5) +
+  theme(panel.grid.major = element_line(color = 'grey')) +
+  scale_x_continuous(breaks = seq(0, 1000, 20)) +
+  scale_y_continuous(breaks = seq(0, 500, 20)) +
+  theme(axis.text = element_blank())
+
+plot_gustsu +
+  geom_point() +
+  theme(panel.grid.major = element_line(color = 'grey')) +
+  scale_x_continuous(breaks = seq(0, 1000, 100)) +
+  scale_y_continuous(breaks = seq(0, 500, 100)) +
+  theme(axis.text = element_blank())
+```
+```{r}
+quadrat_finder = function(gx, gy, Lx, Ly){
+  
+  nx = 1000 / Lx
+  ny = 500 / Ly
+  
+  qx = findInterval(gx, Lx * (0:nx))
+  qy = findInterval(gy, Ly * (1:ny))
+  
+  quadrat = qx + nx * qy
+  
+}
+
+
+tabulation_gustsu = 
+  bci |>
+  mutate(quadrat = quadrat_finder(gx, gy, Lx = 100, Ly = 100)) |>
+  group_by(quadrat) |>
+  summarize(n = sum(sp == 'gustsu'), .groups = 'drop')
+
+tabulation_gustsu
+
+lambda_gustsu = mean(tabulation_gustsu$n)
+lambda_gustsu
+
+percentLutus = ((lambda_gustsu * 50) / 20802) * 100 ## 5 up, 10 across, 20802 is known total of trees.
+percentLutus
+
+variance = var(tabulation_gustsu$n)
+variance
+```
+## Q7
+a) mean count of heaven lotus is 12.14. We can see that this value is heavily skewed by the number of trees at (7, 5)
+b) see above
+c) only ~3.0% of the trees in the plot are heaven lotus trees
+
+## Q8
+No, the mean is 12.14 while the variance was measured to be 1163.388. Because the variance is very different to the mean, a possion process is not a good way to describe this process.
+
+## Q9
+we found that the variance was higher than the mean. Going by the logic of the birds on a line example, we can expect that the trees will not be evenly spaced. looking at the plot, we can see that there is a large cluster of trees at (7, 5)
+
+## Q10
+The trees are considered to be evenly dispersed if the histrogram bars follow the poisson distribution curve. Following this line of logic, we can conclude that the trees are spatially clumped because it does not follow the poisson curve.
+
+## Q11
+Even with the outlier quadrats removed, we cannot get a distribution that fits the poisson curve. Therefore, the outlier quadrats were not driving our statistical inference. The distribution of theses trees not poisson.
+
+## Q12
+At a plot size of 20 x 20 m, we found that the variance was similar to the mean and concluded that the distribution of these trees is a poisson process. At a circle radius of 10m, it shows that the BCI is indistinguishable from a poisson process. The Ripley's K is consisten with our results.
+
+## Q13
+I hypothesize that trees needs to be about 10m away from other trees in order to have sufficient sunlight and nutrients to grow. If the trees are closer, then neither of the trees will have enough resources to survive
+
+## Q14
+G. Superba is a strong competitor species that allows it to compete with other species in its area. it's large fruit and seeds allows its offsprings a higher chance of survival. The cluster is the result of a cluster of G. Superba out-competing other species and depositing its seeds close to it owing to its poor dispersal ability.
+
+```{r}
+BCI_ppp = function(species){
+  if(species == 'all'){
+    dtf = bci
+  } else{
+    dtf = 
+      bci |>
+      filter(sp == species)
+  }
+  
+  dtf |> 
+  select(gx, gy) |> 
+  unique() |>
+  as.ppp(W = list(xrange = c(0, 1000), yrange = c(0, 500)))
+}
+
+K_tibble = function(species){
+  x = BCI_ppp(species)
+  Kinhom(x, correction = 'isotropic') |>
+  as_tibble() |>
+  mutate(sp = species)
+}
+
+```
+
+```{r}
+data_tri2tu = c()
+
+data_tri2tu = K_tibble(species = 'tri2tu') 
+
+plot_K = data_tri2tu |>
+  filter(r > .75) |>
+  ggplot() +
+  geom_hline(yintercept = 1, color = rgb(153/255, 0, 0)) +
+  geom_line(aes(r, iso/ pi / r^2), size = 1) +
+  theme(aspect.ratio = 1) +
+  ylab('Observed K  /  Expected K') +
+  xlab('circle radius')
+
+
+plot_K +
+  scale_x_log10()
+
+```
+## Q15
+One of the similarities that Trichilia tuberculate has with gustavia superba is that there seems to be an distance where the trees space themselves with, the distribution shows that trees are most likely to distance themselves at 10m. This does nto appear to be a poisson distribution because there exists deviation from the Ripley K.
+
+```{r}
+focal_species_name = 'Gustavia superba'
+focal_species_code = 'gustsu'
+
+focal_pp = BCI_ppp(focal_species_code)
+
+null_tibble = 
+  envelope(
+    focal_pp, 
+    Kinhom, 
+    nsim = 999, 
+    nrank = 25, 
+    verbose = FALSE
+  )
+
+plot_RipleysK_with_quantiles =
+  ggplot() +
+  geom_hline(yintercept = 1, color = rgb(153 / 255, 0, 0)) +
+  geom_ribbon(
+    data = 
+      null_tibble |> 
+        filter(r > 0.75),
+    aes(x = r, ymin = lo / pi / r^2, ymax = hi / pi / r^2),
+    fill = 'red',
+    alpha = 0.3
+  ) +
+  geom_line(
+    data = 
+      null_tibble |>
+      filter(r > .75), 
+    aes(r, obs / pi / r^2),
+    linewidth = 1
+  ) +
+  ylab('Observed K  /  Expected K') +
+  xlab('circle radius') +
+  theme(aspect.ratio = 1) +
+  ggtitle(focal_species_name) +
+  scale_x_log10()
+
+plot_RipleysK_with_quantiles +
+  geom_vline(
+    xintercept = c(1.25, 5), 
+    color = c('darkgreen', 'blue'), 
+    linewidth = 2
+  )
+```
+
